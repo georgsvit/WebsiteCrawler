@@ -22,47 +22,43 @@ namespace WebsiteCrawler
                 return;
             }
 
-            Dictionary<string, TimeSpan> foundLinks = WebPagesCrawlerService.Crawl(inputedUri);        
-            string[] linksFromSitemap = Array.Empty<string>();
+            Dictionary<string, TimeSpan> foundLinks = WebPagesCrawlerService.Crawl(inputedUri);
+            IEnumerable<string> linksFromSitemap = SitemapCrawlerService.Crawl(inputedUri);            
+            
+            IEnumerable<string> linksInSitemapNotInSite = linksFromSitemap.Except(foundLinks.Keys);
+            IEnumerable<string> linksInSiteNotInSitemap = foundLinks.Keys.Except(linksFromSitemap);
 
-            try
-            {
-                 linksFromSitemap = SitemapCrawlerService.Crawl(inputedUri);
-            } 
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-            }
-            finally
-            {
-                Console.WriteLine("\nTiming:");
-                foreach (var item in foundLinks)
-                    Console.WriteLine($"{item.Key} {item.Value.Milliseconds}ms");                
-            }
-
-            string[] linksInSitemapNotInSite = linksFromSitemap.Except(foundLinks.Keys).ToArray();
-            string[] linksInSiteNotInSitemap = foundLinks.Keys.Except(linksFromSitemap).ToArray();
-
-            if (linksInSitemapNotInSite.Length > 0)
+            if (linksInSitemapNotInSite.Any())
                 foundLinks.CustomConcat(VisitLinksFromSitemap(linksInSitemapNotInSite));
 
             foundLinks = foundLinks.OrderBy(item => item.Value)
                                    .ToDictionary(item => item.Key, item => item.Value);
-            
-            Console.WriteLine("Urls FOUNDED IN SITEMAP.XML but not founded after crawling a web site:");
-            foreach (string link in linksInSitemapNotInSite)
-                Console.WriteLine($"    {link}");
 
-            Console.WriteLine("\nUrls FOUNDED BY CRAWLING THE WEBSITE but not in sitemap.xml:");
-            foreach (string link in linksInSiteNotInSitemap)
-                Console.WriteLine($"    {link}");
 
-            Console.WriteLine("\nTiming:");
-            foreach (var item in foundLinks)
-                Console.WriteLine($"{item.Key} {item.Value.Milliseconds}ms");
+            PrintTitleAndTable("Urls FOUND IN SITEMAP.XML but not founded after crawling a web site:",
+                               linksInSitemapNotInSite,
+                               s => $"  {s}");
+
+            PrintTitleAndTable("Urls FOUND BY CRAWLING THE WEBSITE but not in sitemap.xml:",
+                               linksInSiteNotInSitemap,
+                               s => $"  {s}");
+
+            PrintTitleAndTable("Timing:",
+                               foundLinks,
+                               item => $"{item.Key} {item.Value.Milliseconds}ms");
+
+            Console.WriteLine($"\nUrls (html documents) found after crawling a website: {foundLinks.Keys.Count}");
+            Console.WriteLine($"Urls found in sitemap: {linksFromSitemap.Count()}");
         }
 
-        private static Dictionary<string, TimeSpan> VisitLinksFromSitemap(string[] links)
+        private static void PrintTitleAndTable<T>(string title, IEnumerable<T> collection, Func<T, string> printElement)
+        {
+            Console.WriteLine($"\n{title}");
+            foreach (var item in collection)
+                Console.WriteLine(printElement(item));
+        }
+
+        private static Dictionary<string, TimeSpan> VisitLinksFromSitemap(IEnumerable<string> links)
         {
             Dictionary<string, TimeSpan> linkTimePairs = new();
 

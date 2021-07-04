@@ -18,7 +18,7 @@ namespace WebsiteCrawler.Services
 
             string pathAndQuery = new Uri(uri).PathAndQuery;
 
-            if (pathAndQuery is not null && pathAndQuery != "/")
+            if (pathAndQuery != "/")
             {
                 links.Add(uri.Replace(pathAndQuery, ""), new());
             }
@@ -27,10 +27,19 @@ namespace WebsiteCrawler.Services
 
             while (currentLink != null)
             {
-                var (extractedLinks, responseTime) = ProcessPage(currentLink);
+                try
+                {
+                    var (extractedLinks, responseTime) = ProcessPage(currentLink);
+                    links[currentLink] = responseTime;
+                    links.CustomConcat(extractedLinks);
+                }
+                catch (Exception e)
+                {
+                    links[currentLink] = TimeSpan.MaxValue;
 
-                links[currentLink] = responseTime;
-                links.CustomConcat(extractedLinks);
+                    // Better to change to logger
+                    Console.WriteLine($"URI: {currentLink} Message: {e.Message}");
+                }
 
                 currentLink = links.FirstOrDefault(item => item.Value.TotalMilliseconds == 0).Key;
             }
@@ -39,48 +48,32 @@ namespace WebsiteCrawler.Services
         }
 
         private static (Dictionary<string, TimeSpan>, TimeSpan) ProcessPage(string uri)
-        {
-            string host = uri.Substring(0, uri.IndexOf('/', 8));
+        {            
             var (pageData, responseTime) = HttpService.GetFileDataAndResponseTimeByUri(uri);
 
+            string host = $"https://{new Uri(uri).Host}";
             var links = GetLinksFromWebPage(pageData, host);
 
-            return (links, responseTime);
+            return (links.ToDictionary(x => x, _ => new TimeSpan()), responseTime);
         }
 
-        private static Dictionary<string, TimeSpan> GetLinksFromWebPage(string pageData, string host)
+        private static IEnumerable<string> GetLinksFromWebPage(string pageData, string host)
         {
             HtmlParser parser = new();
             var page = parser.ParseDocument(pageData);
 
             var links = page.QuerySelectorAll("a")
                             .Select(element => element.GetAttribute("href"))
-                            .Where(link => link is not null && (link.StartsWith(host) || link.StartsWith("/")) && !link.Contains("#") && !link.Contains("@"))
-                            .Select(link => link.StartsWith("/") ? $"{host}{link}" : link)
-                            .Distinct().ToDictionary(x => x, x => new TimeSpan());
+                            .Where(link => link is not null && (link.StartsWith(host) || (link.StartsWith("/") && !link.StartsWith("//"))) && !link.Contains("#") && !link.Contains("@"))
+                            .Select(link =>
+                                link[0] switch
+                                {
+                                    '/' or '.' => $"{host}{link}",
+                                    _ => link
+                                }
+                            ).Distinct();
 
             return links;
-        }
-
-        private static Dictionary<string, TimeSpan> GetLinksFromWebPageRegex(string pageData, string host)
-        {
-            Regex rule = new(@"(?inx)
-                <a \s [^>]*
-                    href \s* = \s*
-                        (?<q> ['""] )
-                            (?<url> [^""]+ )
-                        \k<q>
-                [^>]* >"
-            );
-
-            MatchCollection matchCollection = rule.Matches(pageData);
-
-            var links = matchCollection.Select(match => match.Groups[2].ToString())
-                            .Where(link => link is not null && (link.StartsWith(host) || link.StartsWith("/")) && !link.Contains("#") && !link.Contains("@"))
-                            .Select(link => link.StartsWith("/") ? $"{host}{link}" : link)
-                            .Distinct().ToDictionary(x => x, x => new TimeSpan());
-
-            return links;
-        }
+        }        
     }
 }

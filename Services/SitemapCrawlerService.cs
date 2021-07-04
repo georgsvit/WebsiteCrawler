@@ -8,27 +8,38 @@ namespace WebsiteCrawler.Services
 {
     public static class SitemapCrawlerService
     {
-        public static string[] Crawl(string uri)
+        public static IEnumerable<string> Crawl(string uri)
         {
             Queue<string> sitemapLinks = new(GetSitemapLinksFromRobots(uri));
-            string[] pageLinks = Array.Empty<string>();
+            List<string> pageLinks = new();
 
-            while (sitemapLinks.Count > 0)
+            while (sitemapLinks.Any())
             {
                 string currentLink = sitemapLinks.Dequeue();
                 var (links, sitemaps) = GetLinksFromSitemap(currentLink);
 
-                if (sitemaps.Length > 0)
-                    sitemapLinks = new Queue<string>(sitemapLinks.Concat(sitemaps));
+                if (sitemaps.Any())
+                    foreach (string sitemap in sitemaps)
+                        sitemapLinks.Enqueue(sitemap);
 
-                if (links.Length > 0)
-                    pageLinks = pageLinks.Concat(links).ToArray();
+                if (links.Any())
+                    pageLinks.AddRange(links);
             }
 
             return pageLinks;
         }
 
-        private static (string[], string[]) GetLinksFromSitemap(string uri)
+        private static IEnumerable<string> GetSitemapLinksFromRobots(string uri)
+        {
+            string robotsData = HttpService.GetFileDataByUri($"https://{new Uri(uri).Host}/robots.txt");
+
+            Regex rule = new(@"Sitemap: (.*\.xml)\b");
+            MatchCollection matchCollection = rule.Matches(robotsData);
+
+            return matchCollection.Select(match => match.Groups[1].Value);
+        }
+
+        private static (IEnumerable<string>, IEnumerable<string>) GetLinksFromSitemap(string uri)
         {
             string sitemapData = HttpService.GetFileDataByUri(uri);
 
@@ -37,28 +48,11 @@ namespace WebsiteCrawler.Services
 
             XmlNodeList nodesList = xml.GetElementsByTagName("loc");
 
-            string[] links = nodesList.Cast<XmlElement>().Select(element => element.InnerText).ToArray();
-            string[] sitemaps = links.Where(link => link.Contains("sitemap") && link.EndsWith("xml")).ToArray();
-            links = links.Except(sitemaps).ToArray();
+            IEnumerable<string> links = nodesList.Cast<XmlElement>().Select(element => element.InnerText);
+            IEnumerable<string> sitemaps = links.Where(link => link.Contains("sitemap") && link.EndsWith("xml"));
+            links = links.Except(sitemaps);
 
             return (links, sitemaps);
-        }
-
-        private static string[] GetSitemapLinksFromRobots(string uri)
-        {
-            string robotsData = HttpService.GetFileDataByUri($"{uri}robots.txt");
-
-            Regex rule = new(@"Sitemap: (.*)\b");
-            MatchCollection matchCollection = rule.Matches(robotsData);
-
-            string[] sitemaps = matchCollection.Select(match => match.Groups[1].Value)
-                                               .Where(link => link.EndsWith(".xml"))
-                                               .ToArray();
-
-            if (sitemaps.Length == 0)
-                throw new Exception("Sitemap files not found");
-
-            return sitemaps;
         }
     }
 }
