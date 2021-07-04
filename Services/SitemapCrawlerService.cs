@@ -16,7 +16,7 @@ namespace WebsiteCrawler.Services
             while (sitemapLinks.Count > 0)
             {
                 string currentLink = sitemapLinks.Dequeue();
-                var (links, sitemaps) = GetLinksFromSitemap(uri);
+                var (links, sitemaps) = GetLinksFromSitemap(currentLink);
 
                 if (sitemaps.Length > 0)
                     sitemapLinks = new Queue<string>(sitemapLinks.Concat(sitemaps));
