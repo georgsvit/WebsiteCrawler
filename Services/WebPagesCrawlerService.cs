@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace WebsiteCrawler.Services
@@ -16,6 +17,27 @@ namespace WebsiteCrawler.Services
 
             var links = page.QuerySelectorAll("a")
                             .Select(element => element.GetAttribute("href"))
+                            .Where(link => link is not null && (link.StartsWith(host) || link.StartsWith("/")) && !link.Contains("#"))
+                            .Select(link => link.StartsWith("/") ? $"{host}{link}" : link)
+                            .Distinct().ToDictionary(x => x, x => new TimeSpan());
+
+            return links;
+        }
+
+        private static Dictionary<string, TimeSpan> GetLinksFromWebPageRegex(string pageData, string host)
+        {
+            Regex rule = new(@"(?inx)
+                <a \s [^>]*
+                    href \s* = \s*
+                        (?<q> ['""] )
+                            (?<url> [^""]+ )
+                        \k<q>
+                [^>]* >"
+            );
+
+            MatchCollection matchCollection = rule.Matches(pageData);
+
+            var links = matchCollection.Select(match => match.Groups[2].ToString())
                             .Where(link => link is not null && (link.StartsWith(host) || link.StartsWith("/")) && !link.Contains("#"))
                             .Select(link => link.StartsWith("/") ? $"{host}{link}" : link)
                             .Distinct().ToDictionary(x => x, x => new TimeSpan());
