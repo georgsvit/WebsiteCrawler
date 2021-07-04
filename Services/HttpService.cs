@@ -39,6 +39,26 @@ namespace WebsiteCrawler.Services
             }
         }
 
+        public static TimeSpan GetPageResponseTimeByUri(string uri)
+        {
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(new Uri(uri));
+            Stopwatch timer = new();
+
+            timer.Start();
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            timer.Stop();
+
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.OK:                    
+                    return timer.Elapsed;
+
+                default:
+                    response.Close();
+                    throw new Exception($"Response status code: {response.StatusCode}");
+            }
+        }
+
         public static (string, TimeSpan) GetFileDataAndResponseTimeByUri(string uri)
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(new Uri(uri));
