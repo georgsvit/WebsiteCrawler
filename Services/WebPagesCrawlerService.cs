@@ -10,6 +10,16 @@ namespace WebsiteCrawler.Services
 {
     public static class WebPagesCrawlerService
     {
+        private static (Dictionary<string, TimeSpan>, TimeSpan) ProcessPage(string uri)
+        {
+            string host = uri.Substring(0, uri.IndexOf('/', 8));
+            var (pageData, responseTime) = HttpService.GetFileDataAndResponseTimeByUri(uri);
+
+            var links = GetLinksFromWebPage(pageData, host);
+
+            return (links, responseTime);
+        }
+
         private static Dictionary<string, TimeSpan> GetLinksFromWebPage(string pageData, string host)
         {
             HtmlParser parser = new();
