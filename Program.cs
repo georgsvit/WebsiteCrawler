@@ -23,9 +23,10 @@ namespace WebsiteCrawler
             }
 
             Dictionary<string, TimeSpan> foundLinks = WebPagesCrawlerService.Crawl(inputedUri);
-            IEnumerable<string> linksFromSitemap = SitemapCrawlerService.Crawl(inputedUri);            
+            int foundLinksCount = foundLinks.Count;
+            IEnumerable<string> linksFromSitemap = SitemapCrawlerService.Crawl(inputedUri);
             
-            IEnumerable<string> linksInSitemapNotInSite = linksFromSitemap.Except(foundLinks.Keys);
+            string[] linksInSitemapNotInSite = linksFromSitemap.Except(foundLinks.Keys).ToArray();
             IEnumerable<string> linksInSiteNotInSitemap = foundLinks.Keys.Except(linksFromSitemap);
 
             if (linksInSitemapNotInSite.Any())
@@ -47,7 +48,7 @@ namespace WebsiteCrawler
                                foundLinks,
                                item => $"{item.Key} {item.Value.Milliseconds}ms");
 
-            Console.WriteLine($"\nUrls (html documents) found after crawling a website: {foundLinks.Keys.Count}");
+            Console.WriteLine($"\nUrls (html documents) found after crawling a website: {foundLinksCount}");
             Console.WriteLine($"Urls found in sitemap: {linksFromSitemap.Count()}");
         }
 
